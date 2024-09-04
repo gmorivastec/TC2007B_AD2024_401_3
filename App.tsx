@@ -5,94 +5,184 @@
  * @format
  */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
+  TextInput,
+  Button,
+  Alert,
+  Image
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+// LIBRARY BEING USED:
+// https://rnfirebase.io/
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [breed, setBreed] = useState("");
+  const [name, setName] = useState("");
+  const [imageURL, setImageURL] = useState("");
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  const [user, setUser] = useState();
+
+  // storage
+  storage()
+  .ref('puppy1.jpg')
+  .getDownloadURL()
+  .then(url => {
+    console.log(url);
+    setImageURL(url);
+  });
+
+  useEffect(
+    () => {
+      const subscriber = auth().onAuthStateChanged(user => {
+        setUser(user);
+        console.log("*** USER STATUS: " + user);
+      });
+
+      // when on unmount is invoked on this component
+      // any methods returned on useEffect will be invoked
+      // as part of the component's cleanup
+      return subscriber;
+    }, 
+    []);
+  
+  useEffect(() => {
+    const subscriber = firestore()
+    .collection('perritos')
+    .onSnapshot(querySnapshot => {
+      console.log("+++++++++++++++++++++++");
+      querySnapshot.forEach(currentDoc => {
+        console.log(currentDoc.data());
+      });
+    });
+    return subscriber;
+  }, []);
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View>
+      <TextInput
+        placeholder='email'
+        onChangeText={text => {
+          setEmail(text);
+        }}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <TextInput
+        placeholder='password'
+        secureTextEntry={true}
+        onChangeText={text => {
+          setPassword(text);
+        }}
+      />
+      <Button 
+        title="Sign up"
+        onPress={() => {
+          auth()
+          .createUserWithEmailAndPassword(email, password)
+          .then((userCredential : FirebaseAuthTypes.UserCredential) => {
+            console.log("user created successfully! " + userCredential.user.email);
+          })
+          .catch( error => {
+            console.log(error.code);
+          });
+        }}
+      />
+      <Button 
+        title="Sign in"
+        onPress={() => {
+          auth()
+          .signInWithEmailAndPassword(email, password)
+          .then(() => {
+            console.log("SIGNED IN!");
+          })
+          .catch(error => {
+            console.log(error);
+          });
+        }}
+      />
+      <Button 
+        title="Sign out"
+        onPress={() => {
+          auth().signOut();
+        }}
+      />
+      <TextInput
+        placeholder='name'
+        onChangeText={text => {
+          setName(text);
+        }}
+      />
+
+      <TextInput
+        placeholder='breed'
+        onChangeText={text => {
+          setBreed(text);
+        }}
+      />
+      <Button 
+        title="Add new"
+        onPress={() => {
+          firestore()
+          .collection('perritos')
+          .add({
+            breed: breed,
+            name: name
+          })
+          .then(newDoc => {
+            console.log("ADDED NEW DOCUMENT: " + newDoc.id);
+          });
+        }}
+      />
+      <Button 
+        title="get all"
+        onPress={() => {
+          firestore()
+          .collection('perritos')
+          .get()
+          .then(querySnapshot => {
+
+            // traverse through results 
+            querySnapshot.forEach(currentDocument => {
+              console.log(currentDocument.data());
+            });
+          });
+        }}
+      />
+      <Button 
+        title="query"
+        onPress={() => {
+          firestore()
+          .collection('perritos')
+          .where('breed', '==', 'Labrador')
+          .get()
+          .then(querySnapshot => {
+
+            // traverse through results 
+            querySnapshot.forEach(currentDocument => {
+              console.log(currentDocument.data());
+            });
+          });
+        }}
+      />
+      {
+        imageURL != "" ?
+        <Image 
+          source={{uri: imageURL}}
+          style={{width: 100, height: 100}}
+        /> 
+        :
+        <Text>Loading image...</Text>
+      }
+    </View>
   );
 }
 
